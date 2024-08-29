@@ -1,5 +1,6 @@
 import { toDateTime } from '@/utils/helpers';
 import { stripe } from '@/utils/stripe/config';
+import { DeletedObjectJSON, UserJSON } from '@clerk/nextjs/dist/types/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import type { Database, Tables, TablesInsert } from 'types_db';
@@ -13,9 +14,42 @@ const TRIAL_PERIOD_DAYS = 0;
 // Note: supabaseAdmin uses the SERVICE_ROLE_KEY which you must only use in a secure server-side context
 // as it has admin privileges and overwrites RLS policies!
 const supabaseAdmin = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
+
+const createClerkUserRecord = async (user: UserJSON) => {
+  const userData = {
+    id: user.id,
+    email: user.email_addresses[0].email_address,
+    full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+    avatar_url: user.image_url,
+  };
+  const { error: insertError } = await supabaseAdmin.from('users').insert(userData);
+  if (insertError) throw new Error(`User insert failed: ${insertError.message}`);
+  console.log(`User inserted: ${user.id}`);
+}
+
+const updateClerkUserRecord = async (user: UserJSON) => {
+  const userData = {
+    email: user.email_addresses[0].email_address,
+    full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+    avatar_url: user.image_url,
+  };
+  const { error: updateError } = await supabaseAdmin.from('users')
+    .update(userData)
+    .eq('id', user.id);
+  if (updateError) throw new Error(`User update failed: ${updateError.message}`);
+  console.log(`User updated: ${user.id}`);
+}
+
+const deleteClerkUserRecord = async (user: DeletedObjectJSON) => {
+  const { error: deletionError } = await supabaseAdmin.from('users')
+    .delete()
+    .eq('id', user.id!);
+  if (deletionError) throw new Error(`User deletion failed: ${deletionError.message}`);
+  console.log(`User deleted: ${user.id}`);
+}
 
 const upsertProductRecord = async (product: Stripe.Product) => {
   const productData: Product = {
@@ -283,6 +317,9 @@ const manageSubscriptionStatusChange = async (
 };
 
 export {
+  createClerkUserRecord,
+  updateClerkUserRecord,
+  deleteClerkUserRecord,
   upsertProductRecord,
   upsertPriceRecord,
   deleteProductRecord,

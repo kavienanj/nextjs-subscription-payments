@@ -2,7 +2,6 @@
 
 import Stripe from 'stripe';
 import { stripe } from '@/utils/stripe/config';
-import { createClient } from '@/utils/supabase/server';
 import { createOrRetrieveCustomer } from '@/utils/supabase/admin';
 import {
   getURL,
@@ -10,6 +9,8 @@ import {
   calculateTrialEndUnixTimestamp
 } from '@/utils/helpers';
 import { Tables } from '@/types_db';
+import { createClerkSupabaseSSRClient } from '@/utils/supabase/ssr_client';
+import { getUserDetails } from '@/utils/supabase/queries';
 
 type Price = Tables<'prices'>;
 
@@ -24,23 +25,18 @@ export async function checkoutWithStripe(
 ): Promise<CheckoutResponse> {
   try {
     // Get the user from Supabase auth
-    const supabase = createClient();
-    const {
-      error,
-      data: { user }
-    } = await supabase.auth.getUser();
-
-    if (error || !user) {
-      console.error(error);
-      throw new Error('Could not get user session.');
+    const supabase = createClerkSupabaseSSRClient();
+    const userDetails = await getUserDetails(supabase);
+    if (!userDetails) {
+      throw new Error('Could not find user details.');
     }
 
     // Retrieve or create the customer in Stripe
     let customer: string;
     try {
       customer = await createOrRetrieveCustomer({
-        uuid: user?.id || '',
-        email: user?.email || ''
+        uuid: userDetails!.id,
+        email: userDetails!.email,
       });
     } catch (err) {
       console.error(err);
@@ -121,24 +117,17 @@ export async function checkoutWithStripe(
 
 export async function createStripePortal(currentPath: string) {
   try {
-    const supabase = createClient();
-    const {
-      error,
-      data: { user }
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      if (error) {
-        console.error(error);
-      }
-      throw new Error('Could not get user session.');
+    const supabase = createClerkSupabaseSSRClient();
+    const userDetails = await getUserDetails(supabase);
+    if (!userDetails) {
+      throw new Error('Could not find user details.');
     }
 
     let customer;
     try {
       customer = await createOrRetrieveCustomer({
-        uuid: user.id || '',
-        email: user.email || ''
+        uuid: userDetails.id!,
+        email: userDetails.email!,
       });
     } catch (err) {
       console.error(err);

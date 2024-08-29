@@ -6,10 +6,10 @@ import type { Tables } from '@/types_db';
 import { getStripe } from '@/utils/stripe/client';
 import { checkoutWithStripe } from '@/utils/stripe/server';
 import { getErrorRedirect } from '@/utils/helpers';
-import { User } from '@supabase/supabase-js';
 import cn from 'classnames';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 
 type Subscription = Tables<'subscriptions'>;
 type Product = Tables<'products'>;
@@ -25,14 +25,14 @@ interface SubscriptionWithProduct extends Subscription {
 }
 
 interface Props {
-  user: User | null | undefined;
   products: ProductWithPrices[];
   subscription: SubscriptionWithProduct | null;
 }
 
 type BillingInterval = 'lifetime' | 'year' | 'month';
 
-export default function Pricing({ user, products, subscription }: Props) {
+export default function Pricing({ products, subscription }: Props) {
+  const { user } = useUser();
   const intervals = Array.from(
     new Set(
       products.flatMap((product) =>
@@ -51,7 +51,12 @@ export default function Pricing({ user, products, subscription }: Props) {
 
     if (!user) {
       setPriceIdLoading(undefined);
-      return router.push('/signin/signup');
+      return router.push('/sign-in');
+    }
+
+    if (subscription) {
+      setPriceIdLoading(undefined);
+      return router.push('/account');
     }
 
     const { errorRedirect, sessionId } = await checkoutWithStripe(

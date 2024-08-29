@@ -1,13 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { cache } from 'react';
 
-export const getUser = cache(async (supabase: SupabaseClient) => {
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  return user;
-});
-
 export const getSubscription = cache(async (supabase: SupabaseClient) => {
   const { data: subscription, error } = await supabase
     .from('subscriptions')
@@ -37,3 +30,11 @@ export const getUserDetails = cache(async (supabase: SupabaseClient) => {
     .single();
   return userDetails;
 });
+
+export const updateUserFullName = async (supabase: SupabaseClient, fullName: string) => {
+  const userDetails = await getUserDetails(supabase);
+  const { error } = await supabase.from('users').update({
+    full_name: fullName,
+  }).eq('id', userDetails!.id);
+  return { error };
+}
